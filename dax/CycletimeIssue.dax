@@ -1,0 +1,39 @@
+CycleTimeDay = 
+SUMX (
+    FILTER (
+        QueryStatusHistory,
+        QueryStatusHistory[Field] = "status"
+            && NOT ISBLANK ( QueryStatusHistory[ToValue] )
+            && QueryStatusHistory[ToValue] <> "Done"
+    ),
+    VAR Issue = QueryStatusHistory[IssueKey]
+    VAR ToStatus = QueryStatusHistory[ToValue]
+    VAR EnterDate = QueryStatusHistory[ChangeDate]
+
+    VAR ExitDate =
+        CALCULATE (
+            MIN ( QueryStatusHistory[ChangeDate] ),
+            FILTER (
+                ALL ( QueryStatusHistory ),
+                QueryStatusHistory[IssueKey] = Issue
+                    && QueryStatusHistory[ChangeDate] > EnterDate
+                    && QueryStatusHistory[ToValue] <> "Done"
+            )
+        )
+
+    VAR ExitFinal =
+        IF (
+            ISBLANK ( ExitDate )
+                && ToStatus = SELECTEDVALUE ( QueryIssues[CurrentStatus] ),
+            TODAY (),
+            ExitDate
+        )
+
+    RETURN
+        IF (
+            NOT ISBLANK ( ExitFinal )
+                && DATEDIFF ( EnterDate, ExitFinal, DAY ) > 0,
+            DATEDIFF ( EnterDate, ExitFinal, DAY ),
+            BLANK ()
+        )
+)

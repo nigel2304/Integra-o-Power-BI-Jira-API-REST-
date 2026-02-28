@@ -1,0 +1,13 @@
+LeadTimeIssue = 
+VAR CreatedDate = QueryIssues[Created]
+VAR ResolvedDate = QueryIssues[ResolutionDate]
+
+VAR EndDate =
+    IF (
+        ISBLANK ( ResolvedDate ),
+        BLANK(),
+        ResolvedDate
+    )
+
+RETURN
+DATEDIFF ( CreatedDate, EndDate, DAY )

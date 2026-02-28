@@ -1,1 +1,27 @@
+CurrentAging = 
+VAR CurrentIssue =
+    SELECTEDVALUE ( QueryIssues[IssueKey] )
 
+VAR CurrentStatus =
+    SELECTEDVALUE ( QueryIssues[CurrentStatus] )
+
+VAR IsConcluida =
+    CurrentStatus IN { "Concluído", "Done", "Cancelado" }
+
+VAR LastChangeStatus =
+    CALCULATE (
+        MAX ( QueryStatusHistory[ChangeDate] ),
+        QueryStatusHistory[Field] = "status",
+        QueryStatusHistory[IssueKey] = CurrentIssue
+    )
+
+RETURN
+IF (
+    IsConcluida,
+    BLANK (),
+    IF (
+        ISBLANK ( LastChangeStatus ),
+        BLANK (),
+        DATEDIFF ( LastChangeStatus, TODAY (), DAY )
+    )
+)
