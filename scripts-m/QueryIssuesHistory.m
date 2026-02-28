@@ -13,7 +13,8 @@ let
                         jql = "created >= -500d ORDER BY created ASC",
                         maxResults = Text.From(PageSize),
                         startAt = "0",
-                        fields = "summary,created,resolutiondate,status,assignee"
+                        expand = "changelog",
+                        fields = "created"
                     ]
                 ]
             )
@@ -30,10 +31,11 @@ let
                         BaseUrl,
                         [
                             Query = [
-                                jql = "created >= -500d",
+                                jql = "created >= -500d ORDER BY created ASC",
                                 maxResults = Text.From(PageSize),
                                 startAt = Text.From(StartAt),
-                                fields = "summary,created,resolutiondate,status,assignee"
+                                expand = "changelog",
+                                fields = "created"
                             ]
                         ]
                     )
@@ -66,56 +68,78 @@ let
             {{"key", "IssueKey"}}
         ),
 
-    // ===== EXPANSÃO DOS FIELDS =====
-    ExpandFields =
+    // ===== CHANGELOG =====
+    ExpandChangelog =
         Table.ExpandRecordColumn(
             RenameKey,
-            "fields",
-            {"summary", "created", "resolutiondate", "status", "assignee"},
-            {"Summary", "Created", "ResolutionDate", "Status", "Assignee"}
+            "changelog",
+            {"histories"},
+            {"Histories"}
         ),
 
-    ExpandStatus =
-        Table.ExpandRecordColumn(
-            ExpandFields,
-            "Status",
-            {"name"},
-            {"CurrentStatus"}
+    ExpandHistories =
+        Table.ExpandListColumn(
+            ExpandChangelog,
+            "Histories"
         ),
 
-    ExpandAssignee =
+    ExpandHistoryFields =
         Table.ExpandRecordColumn(
-            ExpandStatus,
-            "Assignee",
-            {"displayName"},
-            {"AssigneeName"}
+            ExpandHistories,
+            "Histories",
+            {"created", "items"},
+            {"ChangeDate", "Items"}
+        ),
+
+    ExpandItems =
+        Table.ExpandListColumn(
+            ExpandHistoryFields,
+            "Items"
+        ),
+
+    // ===== FILTRO: STATUS =====
+    FilterRelevantItems =
+        Table.SelectRows(
+            ExpandItems,
+            each [Items][field] = "status"
+              
+        ),
+
+    ExpandItemDetails =
+        Table.ExpandRecordColumn(
+            FilterRelevantItems,
+            "Items",
+            {"field", "fromString", "toString"},
+            {"Field", "FromValue", "ToValue"}
         ),
 
     // ===== CONVERSÃO DE DATA =====
     ChangeDateType =
         Table.TransformColumns(
-            ExpandAssignee,
+            ExpandItemDetails,
             {
                 {
-                    "Created",
-                    each try
-                        DateTimeZone.FromText(
-                            Text.Replace(_, "-0300", "-03:00")
-                        )
-                    otherwise null,
-                    type datetimezone
-                },
-                {
-                    "ResolutionDate",
-                    each try
-                        DateTimeZone.FromText(
-                            Text.Replace(_, "-0300", "-03:00")
-                        )
-                    otherwise null,
+                    "ChangeDate",
+                    each DateTimeZone.FromText(_),
                     type datetimezone
                 }
             }
-        )
+        ),
+
+    // ===== COLUNAS FINAIS =====
+    FinalColumns =
+        Table.SelectColumns(
+            ChangeDateType,
+            {
+                "IssueKey",
+                "ChangeDate",
+                "Field",
+                "FromValue",
+                "ToValue"
+            }
+        ),
+
+    LinesFiltered = Table.SelectRows(FinalColumns, each true)
 
 in
-    ChangeDateType
+    LinesFiltered
